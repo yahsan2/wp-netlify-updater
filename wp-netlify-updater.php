@@ -18,6 +18,7 @@ class WpNetlifyUpdater {
 
       if(is_admin()){
         add_action('save_post', array($this, 'netlify_webhooks'));
+        add_action('edit_term', array($this, 'netlify_webhooks'));
         add_action('admin_menu', array($this, 'add_menu'));
       }
     }
