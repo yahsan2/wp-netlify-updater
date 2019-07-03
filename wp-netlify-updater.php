@@ -17,19 +17,42 @@ class WpNetlifyUpdater {
       $this->set_options();
 
       if(is_admin()){
-        add_action('save_post', array($this, 'netlify_webhooks'));
-        add_action('edit_term', array($this, 'netlify_webhooks'));
+        add_action('save_post', array($this, 'wp_save_post'));
+        add_action('edit_term', array($this, 'wp_edit_term'));
         add_action('admin_menu', array($this, 'add_menu'));
       }
     }
 
-    function netlify_webhooks() {
+    function wp_save_post( $post_id ) {
+      $title = get_the_title($post_id);
+      $modified_user = $this->get_modified_author($post_id);
+      $this->netlify_webhooks( $title . ' updated by ' . $modified_user->display_name , 'Triggered by wp hook: save_post');
+    }
+
+    function wp_edit_term( $term_id, $tt_id, $taxonomy ) {
+      $term = get_term($term_id, $taxonomy);
+      $this->netlify_webhooks( $term->name, 'Triggered by wp hook: edit_term' );
+    }
+
+    function get_modified_author($post_id) {
+      $last_id = get_post_meta( $post_id, '_edit_last', true );
+      if ( $last_id ) {
+        return get_userdata( $last_id );
+      }
+    }
+
+    function netlify_webhooks($title, $hook = 'Triggered by hook: WordPress') {
       if(isset($this->webhook_url) && $this->webhook_url){
-        $url = $this->webhook_url;
-        $data = array();
+        $parsed_url = parse_url($this->webhook_url);
+        $base_url = $parsed_url['scheme'] . '://' . $parsed_url['host'] . $parsed_url['path'];
+        $title = $title ? $title : get_bloginfo('name');
+        $output['trigger_title'] = $hook. ' | ' . $title;
+        $url = $base_url . '?' . http_build_query($output);
+
+        $output = array();
         $curl = curl_init($url);
         curl_setopt($curl, CURLOPT_POST, true);
-        curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($data));
+        curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query( $output ));
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
         $response = curl_exec($curl);
         curl_close($curl);
